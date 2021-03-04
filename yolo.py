@@ -118,7 +118,8 @@ class YOLO(object):
     #---------------------------------------------------#
     #   检测图片
     #---------------------------------------------------#
-    def detect_image(self, image):
+    def detect_image(self, image, picpath, frameNo):
+        ret = False
         image_shape = np.array(np.shape(image)[0:2])
 
         #---------------------------------------------------------#
@@ -164,7 +165,8 @@ class YOLO(object):
             try:
                 batch_detections = batch_detections[0].cpu().numpy()
             except:
-                return image
+                ret = False
+                return image, ret
             
             #---------------------------------------------------------#
             #   对预测框进行得分筛选
@@ -192,7 +194,7 @@ class YOLO(object):
         font = ImageFont.truetype(font='model_data/simhei.ttf',size=np.floor(3e-2 * np.shape(image)[1] + 0.5).astype('int32'))
 
         thickness = max((np.shape(image)[0] + np.shape(image)[1]) // self.model_image_size[0], 1)
-
+        #savepath = "./curve/objs/"
         for i, c in enumerate(top_label):
             predicted_class = self.class_names[c]
             score = top_conf[i]
@@ -207,13 +209,29 @@ class YOLO(object):
             left = max(0, np.floor(left + 0.5).astype('int32'))
             bottom = min(np.shape(image)[0], np.floor(bottom + 0.5).astype('int32'))
             right = min(np.shape(image)[1], np.floor(right + 0.5).astype('int32'))
+            print(predicted_class)
+            
+            if predicted_class == "person":
+                # 问题出在这里：不能用这个方法，看两个参数是长和宽，是从图像的原点开始裁剪的，这样肯定是不对的
+                # 指定裁剪的目标范围
+                uncroped_image = np.array(image.copy())
+                croped_region = uncroped_image[top:bottom,left:right]# 先高后宽
+                # 将裁剪好的目标保存到本地
+                savepath = picpath + "/" + str(frameNo) + "_" + str(i)+".jpg"
+                #print(savepath + str(frameNo) + str(i)+".jpg")
+                print(savepath)
+                cv2.imwrite(savepath, croped_region)
+                ret = True
+            else:
+                continue
 
             # 画框框
             label = '{} {:.2f}'.format(predicted_class, score)
             draw = ImageDraw.Draw(image)
             label_size = draw.textsize(label, font)
             label = label.encode('utf-8')
-            print(label, top, left, bottom, right)
+            if predicted_class == "person":
+                print(label, top, left, bottom, right)
             
             if top - label_size[1] >= 0:
                 text_origin = np.array([left, top - label_size[1]])
@@ -228,6 +246,7 @@ class YOLO(object):
                 [tuple(text_origin), tuple(text_origin + label_size)],
                 fill=self.colors[self.class_names.index(predicted_class)])
             draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
-            del draw
-        return image
+            del draw        
+        return image, ret
+
 
